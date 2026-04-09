@@ -100,11 +100,9 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
   </div>
 )}
 
-      {activeTab === "files" && (
-        <div>
-          <p className="text-sm text-gray-400">Files tab coming next.</p>
-        </div>
-      )}
+     {activeTab === "files" && (
+  <FilesTab jobId={job.id} initialFiles={files} />
+)}
 
       {activeTab === "proposal" && (
         <div>
@@ -296,6 +294,80 @@ function PricingScope({ scope }: { scope: any }) {
             <span className="font-medium">${scopeTotal.toFixed(2)}</span>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function FilesTab({ jobId, initialFiles }: { jobId: string; initialFiles: any[] }) {
+  const [fileList, setFileList] = useState(initialFiles);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+
+    const filePath = `${jobId}/${Date.now()}_${file.name}`;
+    const { error: uploadError } = await supabase.storage
+      .from("job-files")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      alert("Upload failed: " + uploadError.message);
+      setUploading(false);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("files")
+      .insert({
+        job_id: jobId,
+        file_name: file.name,
+        file_type: file.type,
+        storage_url: filePath,
+      })
+      .select()
+      .single();
+
+    if (data) setFileList([...fileList, data]);
+    setUploading(false);
+    e.target.value = "";
+  }
+
+  async function handleDownload(file: any) {
+    const { data } = await supabase.storage
+      .from("job-files")
+      .createSignedUrl(file.storage_url, 60);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Files</p>
+        <label className="text-sm text-blue-500 hover:text-blue-700 cursor-pointer">
+          {uploading ? "Uploading..." : "+ Upload file"}
+          <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
+        </label>
+      </div>
+
+      {fileList.length === 0 ? (
+        <p className="text-sm text-gray-400">No files yet. Upload vendor quotes, plans, or specs.</p>
+      ) : (
+        <div className="flex flex-col">
+          {fileList.map((file) => (
+            <div key={file.id} className="flex items-center justify-between py-3 border-b border-gray-100">
+              <span className="text-sm">{file.file_name}</span>
+              <button
+                onClick={() => handleDownload(file)}
+                className="text-xs text-blue-500 hover:text-blue-700"
+              >
+                Download
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
