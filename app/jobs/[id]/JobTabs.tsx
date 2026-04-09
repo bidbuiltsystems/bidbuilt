@@ -9,6 +9,14 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
   const [addingScopeName, setAddingScopeName] = useState("");
   const [showAddScope, setShowAddScope] = useState(false);
 
+  async function reloadScopes() {
+  const { data } = await supabase
+    .from("scopes")
+    .select(`*, scope_vendors(*, vendor:vendors(name), line_items(*))`)
+    .eq("job_id", job.id);
+  if (data) setScopeList(data);
+}
+
   async function handleAddScope() {
     if (!addingScopeName.trim()) return;
     const { data } = await supabase
@@ -29,7 +37,7 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
         {["takeoff", "pricing", "files", "proposal"].map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => { setActiveTab(tab); reloadScopes(); }}
             className={`px-4 py-2 text-sm capitalize ${activeTab === tab ? "font-medium border-b-2 border-black" : "text-gray-400"}`}
           >
             {tab}
@@ -75,11 +83,22 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
         </div>
       )}
 
-      {activeTab === "pricing" && (
-        <div>
-          <p className="text-sm text-gray-400">Pricing tab coming next.</p>
-        </div>
-      )}
+     {activeTab === "pricing" && (
+  <div>
+    <div className="flex items-center justify-between mb-4">
+      <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Pricing</p>
+    </div>
+    {scopeList.length === 0 ? (
+      <p className="text-sm text-gray-400">No scopes yet. Add scopes in the Takeoff tab first.</p>
+    ) : (
+      <div className="flex flex-col gap-6">
+        {scopeList.map((scope) => (
+          <PricingScope key={scope.id} scope={scope} />
+        ))}
+      </div>
+    )}
+  </div>
+)}
 
       {activeTab === "files" && (
         <div>
@@ -176,6 +195,107 @@ function ScopeLineItems({ scope }: { scope: any }) {
         </div>
       ) : (
         <button onClick={() => setShowAdd(true)} className="text-xs text-blue-500 hover:text-blue-700">+ Add line item</button>
+      )}
+    </div>
+  );
+}
+
+function PricingScope({ scope }: { scope: any }) {
+  const [items, setItems] = useState(scope.scope_vendors?.[0]?.line_items ?? []);
+  const scopeVendorId = scope.scope_vendors?.[0]?.id;
+
+  async function handlePriceChange(itemId: string, field: string, value: string) {
+    const numVal = parseFloat(value) || 0;
+    await supabase.from("line_items").update({ [field]: numVal }).eq("id", itemId);
+    setItems((prev: any[]) =>
+      prev.map((item: any) => (item.id === itemId ? { ...item, [field]: numVal } : item))
+    );
+  }
+
+  function calcExtended(item: any) {
+    const base = (item.unit_price || 0) * (item.quantity || 1);
+    const withFreight = base + (item.freight || 0);
+    const withMultiplier = withFreight * (item.multiplier || 1);
+    const withMarkup = withMultiplier * (1 + (item.markup_pct || 0) / 100);
+    return withMarkup.toFixed(2);
+  }
+
+  const scopeTotal = items.reduce((sum: number, item: any) => sum + parseFloat(calcExtended(item)), 0);
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4">
+      <p className="font-medium text-sm mb-3">{scope.scope_name}</p>
+      {items.length === 0 ? (
+        <p className="text-xs text-gray-400">No line items. Add them in the Takeoff tab first.</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-100">
+                  <th className="text-left py-1 pr-3">Part #</th>
+                  <th className="text-left py-1 pr-3">Desc</th>
+                  <th className="text-left py-1 pr-3">Qty</th>
+                  <th className="text-left py-1 pr-3">Unit price</th>
+                  <th className="text-left py-1 pr-3">Freight</th>
+                  <th className="text-left py-1 pr-3">Multiplier</th>
+                  <th className="text-left py-1 pr-3">Markup %</th>
+                  <th className="text-left py-1">Extended</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item: any) => (
+                  <tr key={item.id} className="border-b border-gray-50">
+                    <td className="py-2 pr-3 text-gray-600">{item.part_number}</td>
+                    <td className="py-2 pr-3 text-gray-600">{item.description}</td>
+                    <td className="py-2 pr-3 text-gray-600">{item.quantity}</td>
+                    <td className="py-2 pr-3">
+                      <input
+                        type="number"
+                        defaultValue={item.unit_price || ""}
+                        onBlur={(e) => handlePriceChange(item.id, "unit_price", e.target.value)}
+                        placeholder="0.00"
+                        className="border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none"
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <input
+                        type="number"
+                        defaultValue={item.freight || ""}
+                        onBlur={(e) => handlePriceChange(item.id, "freight", e.target.value)}
+                        placeholder="0.00"
+                        className="border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none"
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <input
+                        type="number"
+                        defaultValue={item.multiplier || 1}
+                        onBlur={(e) => handlePriceChange(item.id, "multiplier", e.target.value)}
+                        placeholder="1.0"
+                        className="border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none"
+                      />
+                    </td>
+                    <td className="py-2 pr-3">
+                      <input
+                        type="number"
+                        defaultValue={item.markup_pct || ""}
+                        onBlur={(e) => handlePriceChange(item.id, "markup_pct", e.target.value)}
+                        placeholder="0"
+                        className="border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none"
+                      />
+                    </td>
+                    <td className="py-2 font-medium">${calcExtended(item)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end mt-3 gap-4 text-sm">
+            <span className="text-gray-400">Scope subtotal</span>
+            <span className="font-medium">${scopeTotal.toFixed(2)}</span>
+          </div>
+        </>
       )}
     </div>
   );
