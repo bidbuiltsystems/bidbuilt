@@ -10,12 +10,12 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
   const [showAddScope, setShowAddScope] = useState(false);
 
   async function reloadScopes() {
-  const { data } = await supabase
-    .from("scopes")
-    .select(`*, scope_vendors(*, vendor:vendors(name), line_items(*))`)
-    .eq("job_id", job.id);
-  if (data) setScopeList(data);
-}
+    const { data } = await supabase
+      .from("scopes")
+      .select(`*, scope_vendors(*, vendor:vendors(name), line_items(*))`)
+      .eq("job_id", job.id);
+    if (data) setScopeList(data);
+  }
 
   async function handleAddScope() {
     if (!addingScopeName.trim()) return;
@@ -51,7 +51,6 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
             <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Scopes</p>
             <button onClick={() => setShowAddScope(true)} className="text-sm text-blue-500 hover:text-blue-700">+ Add scope</button>
           </div>
-
           {showAddScope && (
             <div className="flex gap-2 mb-4">
               <input
@@ -65,7 +64,6 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
               <button onClick={() => setShowAddScope(false)} className="text-sm text-gray-400 px-2">Cancel</button>
             </div>
           )}
-
           {scopeList.length === 0 ? (
             <p className="text-sm text-gray-400">No scopes yet. Add your first scope.</p>
           ) : (
@@ -83,31 +81,29 @@ export default function JobTabs({ job, scopes, files }: { job: any; scopes: any[
         </div>
       )}
 
-     {activeTab === "pricing" && (
-  <div>
-    <div className="flex items-center justify-between mb-4">
-      <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Pricing</p>
-    </div>
-    {scopeList.length === 0 ? (
-      <p className="text-sm text-gray-400">No scopes yet. Add scopes in the Takeoff tab first.</p>
-    ) : (
-      <div className="flex flex-col gap-6">
-        {scopeList.map((scope) => (
-          <PricingScope key={scope.id} scope={scope} />
-        ))}
-      </div>
-    )}
-  </div>
-)}
+      {activeTab === "pricing" && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Pricing</p>
+          </div>
+          {scopeList.length === 0 ? (
+            <p className="text-sm text-gray-400">No scopes yet. Add scopes in the Takeoff tab first.</p>
+          ) : (
+            <div className="flex flex-col gap-6">
+              {scopeList.map((scope) => (
+                <PricingScope key={scope.id} scope={scope} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-     {activeTab === "files" && (
-  <FilesTab jobId={job.id} initialFiles={files} />
-)}
+      {activeTab === "files" && (
+        <FilesTab jobId={job.id} initialFiles={files} />
+      )}
 
       {activeTab === "proposal" && (
-        <div>
-          <p className="text-sm text-gray-400">Proposal tab coming next.</p>
-        </div>
+        <ProposalTab job={job} scopes={scopeList} />
       )}
     </div>
   );
@@ -118,14 +114,11 @@ function ScopeLineItems({ scope }: { scope: any }) {
   const [showAdd, setShowAdd] = useState(false);
   const [partNumber, setPartNumber] = useState("");
   const [description, setDescription] = useState("");
-  const [area, setArea] = useState("");
   const [quantity, setQuantity] = useState("1");
 
   async function handleAddItem() {
     if (!partNumber.trim()) return;
-
     let scopeVendorId = scope.scope_vendors?.[0]?.id;
-
     if (!scopeVendorId) {
       const { data: sv } = await supabase
         .from("scope_vendors")
@@ -134,23 +127,15 @@ function ScopeLineItems({ scope }: { scope: any }) {
         .single();
       scopeVendorId = sv?.id;
     }
-
     const { data } = await supabase
       .from("line_items")
-      .insert({
-        scope_vendor_id: scopeVendorId,
-        part_number: partNumber,
-        description: description,
-        quantity: parseInt(quantity),
-      })
+      .insert({ scope_vendor_id: scopeVendorId, part_number: partNumber, description, quantity: parseInt(quantity) })
       .select()
       .single();
-
     if (data) {
       setItems([...items, data]);
       setPartNumber("");
       setDescription("");
-      setArea("");
       setQuantity("1");
       setShowAdd(false);
     }
@@ -178,7 +163,6 @@ function ScopeLineItems({ scope }: { scope: any }) {
           </tbody>
         </table>
       )}
-
       {showAdd ? (
         <div className="flex flex-col gap-2 mt-2">
           <div className="flex gap-2">
@@ -200,7 +184,6 @@ function ScopeLineItems({ scope }: { scope: any }) {
 
 function PricingScope({ scope }: { scope: any }) {
   const [items, setItems] = useState(scope.scope_vendors?.[0]?.line_items ?? []);
-  const scopeVendorId = scope.scope_vendors?.[0]?.id;
 
   async function handlePriceChange(itemId: string, field: string, value: string) {
     const numVal = parseFloat(value) || 0;
@@ -248,40 +231,16 @@ function PricingScope({ scope }: { scope: any }) {
                     <td className="py-2 pr-3 text-gray-600">{item.description}</td>
                     <td className="py-2 pr-3 text-gray-600">{item.quantity}</td>
                     <td className="py-2 pr-3">
-                      <input
-                        type="number"
-                        defaultValue={item.unit_price || ""}
-                        onBlur={(e) => handlePriceChange(item.id, "unit_price", e.target.value)}
-                        placeholder="0.00"
-                        className="border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none"
-                      />
+                      <input type="number" defaultValue={item.unit_price || ""} onBlur={(e) => handlePriceChange(item.id, "unit_price", e.target.value)} placeholder="0.00" className="border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                     </td>
                     <td className="py-2 pr-3">
-                      <input
-                        type="number"
-                        defaultValue={item.freight || ""}
-                        onBlur={(e) => handlePriceChange(item.id, "freight", e.target.value)}
-                        placeholder="0.00"
-                        className="border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none"
-                      />
+                      <input type="number" defaultValue={item.freight || ""} onBlur={(e) => handlePriceChange(item.id, "freight", e.target.value)} placeholder="0.00" className="border border-gray-200 rounded px-2 py-1 w-20 focus:outline-none" />
                     </td>
                     <td className="py-2 pr-3">
-                      <input
-                        type="number"
-                        defaultValue={item.multiplier || 1}
-                        onBlur={(e) => handlePriceChange(item.id, "multiplier", e.target.value)}
-                        placeholder="1.0"
-                        className="border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none"
-                      />
+                      <input type="number" defaultValue={item.multiplier || 1} onBlur={(e) => handlePriceChange(item.id, "multiplier", e.target.value)} placeholder="1.0" className="border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                     </td>
                     <td className="py-2 pr-3">
-                      <input
-                        type="number"
-                        defaultValue={item.markup_pct || ""}
-                        onBlur={(e) => handlePriceChange(item.id, "markup_pct", e.target.value)}
-                        placeholder="0"
-                        className="border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none"
-                      />
+                      <input type="number" defaultValue={item.markup_pct || ""} onBlur={(e) => handlePriceChange(item.id, "markup_pct", e.target.value)} placeholder="0" className="border border-gray-200 rounded px-2 py-1 w-16 focus:outline-none" />
                     </td>
                     <td className="py-2 font-medium">${calcExtended(item)}</td>
                   </tr>
@@ -307,38 +266,25 @@ function FilesTab({ jobId, initialFiles }: { jobId: string; initialFiles: any[] 
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-
     const filePath = `${jobId}/${Date.now()}_${file.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from("job-files")
-      .upload(filePath, file);
-
+    const { error: uploadError } = await supabase.storage.from("job-files").upload(filePath, file);
     if (uploadError) {
       alert("Upload failed: " + uploadError.message);
       setUploading(false);
       return;
     }
-
     const { data } = await supabase
       .from("files")
-      .insert({
-        job_id: jobId,
-        file_name: file.name,
-        file_type: file.type,
-        storage_url: filePath,
-      })
+      .insert({ job_id: jobId, file_name: file.name, file_type: file.type, storage_url: filePath })
       .select()
       .single();
-
     if (data) setFileList([...fileList, data]);
     setUploading(false);
     e.target.value = "";
   }
 
   async function handleDownload(file: any) {
-    const { data } = await supabase.storage
-      .from("job-files")
-      .createSignedUrl(file.storage_url, 60);
+    const { data } = await supabase.storage.from("job-files").createSignedUrl(file.storage_url, 60);
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   }
 
@@ -351,7 +297,6 @@ function FilesTab({ jobId, initialFiles }: { jobId: string; initialFiles: any[] 
           <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
         </label>
       </div>
-
       {fileList.length === 0 ? (
         <p className="text-sm text-gray-400">No files yet. Upload vendor quotes, plans, or specs.</p>
       ) : (
@@ -359,15 +304,78 @@ function FilesTab({ jobId, initialFiles }: { jobId: string; initialFiles: any[] 
           {fileList.map((file) => (
             <div key={file.id} className="flex items-center justify-between py-3 border-b border-gray-100">
               <span className="text-sm">{file.file_name}</span>
-              <button
-                onClick={() => handleDownload(file)}
-                className="text-xs text-blue-500 hover:text-blue-700"
-              >
-                Download
-              </button>
+              <button onClick={() => handleDownload(file)} className="text-xs text-blue-500 hover:text-blue-700">Download</button>
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function ProposalTab({ job, scopes }: { job: any; scopes: any[] }) {
+  function calcExtended(item: any) {
+    const base = (item.unit_price || 0) * (item.quantity || 1);
+    const withFreight = base + (item.freight || 0);
+    const withMultiplier = withFreight * (item.multiplier || 1);
+    const withMarkup = withMultiplier * (1 + (item.markup_pct || 0) / 100);
+    return withMarkup;
+  }
+
+  const scopesWithTotals = scopes.map((scope) => {
+    const items = scope.scope_vendors?.[0]?.line_items ?? [];
+    const subtotal = items.reduce((sum: number, item: any) => sum + calcExtended(item), 0);
+    return { ...scope, items, subtotal };
+  });
+
+  const grandTotal = scopesWithTotals.reduce((sum, scope) => sum + scope.subtotal, 0);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-widest">Proposal</p>
+      </div>
+      <div className="border border-gray-200 rounded-lg p-6">
+        <div className="flex justify-between mb-6 text-sm">
+          <div>
+            <p className="font-medium">Beach Products</p>
+            <p className="text-gray-400">Division 10 Specialties</p>
+          </div>
+          <div className="text-right text-gray-400">
+            <p>Quote #{job.quote_number}</p>
+            <p>{job.quote_date}</p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-6">
+          {scopesWithTotals.map((scope) => (
+            <div key={scope.id}>
+              <p className="font-medium text-sm mb-2">{scope.scope_name}</p>
+              {scope.items.length === 0 ? (
+                <p className="text-xs text-gray-400">No items priced yet.</p>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {scope.items.map((item: any) => (
+                    <div key={item.id} className="flex justify-between text-sm">
+                      <span className="text-gray-600">{item.description || item.part_number} (qty {item.quantity})</span>
+                      <span>${calcExtended(item).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-medium mt-1 pt-1 border-t border-gray-100">
+                    <span>Subtotal</span>
+                    <span>${scope.subtotal.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between text-base font-medium mt-6 pt-4 border-t border-gray-200">
+          <span>Grand total</span>
+          <span>${grandTotal.toFixed(2)}</span>
+        </div>
+      </div>
+      {scopesWithTotals.length === 0 && (
+        <p className="text-sm text-gray-400 mt-4">Add scopes and pricing first to generate a proposal.</p>
       )}
     </div>
   );
